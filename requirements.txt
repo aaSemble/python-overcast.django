@@ -5,3 +5,4 @@ python-social-auth
 django-bootstrap3
 dj-static
 python-debian
+chardet
