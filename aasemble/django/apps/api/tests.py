@@ -1,5 +1,8 @@
 from django.core.urlresolvers import reverse
-from rest_framework.test import APIClient, APIRequestFactory, APITestCase
+from aasemble.django.service.client.repository_client import RepositoryClient
+from aasemble.django.service.client.build_client import BuildClient
+from aasemble.django.service.client.source_client import SourceClient
+from aasemble.django.service.client.auth_client import AuthClient
 from rest_framework.authtoken.models import Token
 
 def authenticate(client, username=None, token=None):
@@ -8,45 +11,39 @@ def authenticate(client, username=None, token=None):
     client.credentials(HTTP_AUTHORIZATION='Token ' + token)
 
 
-class APIv1Tests(APITestCase):
-    fixtures = ['data.json', 'data2.json']
-
-
-class APIv1RepositoryTests(APIv1Tests):
-    list_url = '/api/v1/repositories/'
+class APIv1RepositoryTests(RepositoryClient):
 
     def test_fetch_sources(self):
         # Use alterego2 to make sure it works with users who are members
         # of multiple groups
         authenticate(self.client, 'alterego2')
-        response = self.client.get(self.list_url)
+        response = self.get_repository()
 
         for repo in response.data['results']:
-            resp = self.client.get(repo['sources'])
+            resp = self.show_repository(repo['sources'])
             self.assertEquals(resp.status_code, 200)
 
     def test_fetch_external_dependencies(self):
         # Use alterego2 to make sure it works with users who are members
         # of multiple groups
         authenticate(self.client, 'alterego2')
-        response = self.client.get(self.list_url)
+        response = self.get_repository()
 
         for repo in response.data['results']:
-            resp = self.client.get(repo['external_dependencies'])
+            resp = self.show_repository(repo['external_dependencies'])
             self.assertEquals(resp.status_code, 200)
 
     def test_create_repository_empty_fails_400(self):
         data = {}
         authenticate(self.client, 'testuser')
-
-        response = self.client.post(self.list_url, data, format='json')
+        response = self.create_repository(**data)
         self.assertEquals(response.status_code, 400)
         self.assertEquals(response.data, {'name': ['This field is required.']})
 
 
     def test_create_repository_no_auth_fails_401(self):
         data = {}
-        response = self.client.post(self.list_url, data, format='json')
+        response = self.create_repository(**data)
         self.assertEquals(response.status_code, 401)
 
 
@@ -54,7 +51,7 @@ class APIv1RepositoryTests(APIv1Tests):
         data = {}
         authenticate(self.client, token='invalidtoken')
 
-        response = self.client.post(self.list_url, data, format='json')
+        response = self.create_repository(**data)
 
         self.assertEquals(response.status_code, 401)
 
@@ -62,8 +59,7 @@ class APIv1RepositoryTests(APIv1Tests):
         data = {'name': 'testrepo'}
         authenticate(self.client, 'testuser')
 
-        response = self.client.post(self.list_url, data, format='json')
-
+        response = self.create_repository(**data)
         self.assertEquals(response.status_code, 201)
         self.assertTrue(response.data['self'].startswith('http://testserver' + self.list_url), response.data['self'])
         expected_result = {'external_dependencies': response.data['self'] + 'external_dependencies/',
@@ -76,7 +72,7 @@ class APIv1RepositoryTests(APIv1Tests):
                            'key_id': u''}
 
         self.assertEquals(response.data, expected_result)
-        response = self.client.get(response.data['self'])
+        response = self.show_repository(response.data['self'])
         self.assertEquals(response.data, expected_result)
         return response.data
 
@@ -84,20 +80,20 @@ class APIv1RepositoryTests(APIv1Tests):
     def test_create_duplicate_repository(self):
         data = {'name': 'testrepo'}
         authenticate(self.client, 'testuser')
-        response = self.client.post(self.list_url, data, format='json')
+        response = self.create_repository(**data)
         self.assertEquals(response.status_code, 201)
-        response = self.client.post(self.list_url, data, format='json')
+        response = self.create_repository(**data)
         self.assertEquals(response.status_code, 409)
 
 
     def test_delete_repository(self):
         repo = self.test_create_repository()
 
-        response = self.client.delete(repo['self'])
+        response = self.delete_repository(repo['self'])
 
         self.assertEquals(response.status_code, 204)
 
-        response = self.client.get(repo['self'])
+        response = self.show_repository(repo['self'])
         self.assertEquals(response.status_code, 404)
 
 
@@ -105,7 +101,7 @@ class APIv1RepositoryTests(APIv1Tests):
         repo = self.test_create_repository()
         data = {'name': 'testrepo2'}
 
-        response = self.client.patch(repo['self'], data, format='json')
+        response = self.update_repository(repo['self'], **data)
 
         self.assertEquals(response.status_code, 200)
         self.assertEquals(response.data['self'], repo['self'], '"self" attribute changed')
@@ -120,31 +116,24 @@ class APIv1RepositoryTests(APIv1Tests):
                            'key_id': u''}
 
         self.assertEquals(response.data, expected_result)
-
-        response = self.client.get(response.data['self'])
+        response = self.show_repository(response.data['self'])
         self.assertEquals(response.data, expected_result, 'Changes were not persisted')
 
     def test_patch_repository_read_only_field(self):
         repo = self.test_create_repository()
         data = {'user': 'testuser2'}
-
-        response = self.client.patch(repo['self'], data, format='json')
-
+        response = self.update_repository(repo['self'], **data)
 
 class APIv2RepositoryTests(APIv1RepositoryTests):
     list_url = '/api/v2/repositories/'
 
 
-class APIv1BuildTests(APIv1Tests):
-    fixtures = ['data.json', 'data2.json', 'repository.json']
-
-    list_url = '/api/v1/builds/'
-
+class APIv1BuildTests(BuildClient):
     def test_fetch_builds(self):
         # Use alterego2 to make sure it works with users who are members
         # of multiple groups
         authenticate(self.client, 'alterego2')
-        response = self.client.get(self.list_url)
+        response = self.get_build()
         self.assertEquals(response.status_code, 200)
 
 
@@ -152,16 +141,13 @@ class APIv2BuildTests(APIv1BuildTests):
     list_url = '/api/v2/builds/'
 
 
-class APIv1SourceTests(APIv1Tests):
-    fixtures = ['data.json', 'data2.json', 'repository.json']
-
-    list_url = '/api/v1/sources/'
+class APIv1SourceTests(SourceClient):
 
     def test_create_source_empty_fails_400(self):
         data = {}
         authenticate(self.client, 'testuser')
 
-        response = self.client.post(self.list_url, data, format='json')
+        response = self.create_source(**data)
         self.assertEquals(response.status_code, 400)
         self.assertEquals(response.data, {'git_repository': ['This field is required.'],
                                           'git_branch': ['This field is required.'],
@@ -172,7 +158,7 @@ class APIv1SourceTests(APIv1Tests):
         data = {'git_repository': 'not a valid url'}
         authenticate(self.client, 'testuser')
 
-        response = self.client.post(self.list_url, data, format='json')
+        response = self.create_source(**data)
         self.assertEquals(response.status_code, 400)
         self.assertEquals(response.data, {'git_repository': ['Enter a valid URL.'],
                                           'git_branch': ['This field is required.'],
@@ -181,7 +167,7 @@ class APIv1SourceTests(APIv1Tests):
 
     def test_create_source_no_auth_fails_401(self):
         data = {}
-        response = self.client.post(self.list_url, data, format='json')
+        response = self.create_source(**data)
         self.assertEquals(response.status_code, 401)
 
 
@@ -189,20 +175,19 @@ class APIv1SourceTests(APIv1Tests):
         data = {}
         authenticate(self.client, token='invalidtoken')
 
-        response = self.client.post(self.list_url, data, format='json')
+        response = self.create_source(**data)
 
         self.assertEquals(response.status_code, 401)
 
     def test_create_source(self):
         authenticate(self.client, 'testuser')
-
-        response = self.client.get(self.list_url.replace('sources', 'repositories'))
+        response = self.get_source(uri=self.list_url.replace('sources', 'repositories'))
 
         data = {'git_repository': 'https://github.com/sorenh/buildsvctest',
                 'git_branch': 'master',
                 'repository': response.data['results'][0]['self']}
 
-        response = self.client.post(self.list_url, data, format='json')
+        response = self.create_source(**data)
 
         self.assertEquals(response.status_code, 201)
         self.assertTrue(response.data['self'].startswith('http://testserver' + self.list_url), response.data['self'])
@@ -210,32 +195,30 @@ class APIv1SourceTests(APIv1Tests):
         data['builds'] = data['self'] + 'builds/'
         self.assertEquals(response.data, data)
 
-        response = self.client.get(data['self'])
+        response = self.show_source(data['self'])
         self.assertEquals(response.data, data)
         return response.data
 
     def test_delete_source(self):
         source = self.test_create_source()
 
-        response = self.client.delete(source['self'])
+        response = self.delete_source(source['self'])
 
         self.assertEquals(response.status_code, 204)
 
-        response = self.client.get(source['self'])
+        response = self.show_source(source['self'])
         self.assertEquals(response.status_code, 404)
 
 
 class APIv2SourceTests(APIv1SourceTests):
-    fixtures = ['data.json', 'data2.json', 'repository.json']
-
     list_url = '/api/v2/sources/'
 
 
-class APIv1AuthTests(APIv1Tests):
+class APIv1AuthTests(AuthClient):
     def test_get_user_details(self):
         authenticate(self.client, 'testuser')
 
-        response = self.client.get('/api/v1/auth/user/', format='json')
+        response = self.get_auth()
         self.assertEquals(response.status_code, 200)
         self.assertEquals(response.data,
                           {'username': u'testuser',
