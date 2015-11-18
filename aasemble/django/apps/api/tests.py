@@ -416,6 +416,21 @@ class APIv2MirrorTests(APIv1MirrorTests):
     list_url = '/api/v2/mirrors/'
 
 
+class APIv1MirrorSetTests(APIv1Tests):
+    list_url = '/api/v1/mirror_sets/'
+
+    def test_create_mirrorset_empty_fails_400(self):
+        data = {}
+        authenticate(self.client, 'eric')
+        response = self.client.post(self.list_url, data, format='json')
+        self.assertEquals(response.status_code, 400)
+        self.assertEquals(response.data, {'mirrors': ['This field is required.']})
+
+
+class APIv2MirrorSetTests(APIv1MirrorSetTests):
+    list_url = '/api/v2/mirror_sets/'
+
+
 class GithubHookViewTestCase(APIv1Tests):
     @mock.patch('aasemble.django.apps.api.tasks.github_push_event')
     def test_hook(self, github_push_event):
