@@ -54,11 +54,14 @@ class aaSembleV1Views(object):
             lookup_value_regex = selff.default_lookup_value_regex
             queryset = mirrorsvc_models.Mirror.objects.all()
             serializer_class = selff.serializers.MirrorSerializer
+            action_logger = UserActionLogger()
 
             def get_queryset(self):
+                self.action_logger.log_action(self.request)
                 return self.queryset.filter(owner_id=self.request.user.id) | self.queryset.filter(public=True)
 
             def perform_create(self, serializer):
+                self.action_logger.log_action(self.request)
                 serializer.save(owner=self.request.user)
 
             @detail_route(methods=['post'])
@@ -69,6 +72,7 @@ class aaSembleV1Views(object):
                     status = 'update scheduled'
                 else:
                     status = 'update already scheduled'
+                self.action_logger.log_action(self.request)
                 return Response({'status': status})
 
         return MirrorViewSet
@@ -236,12 +240,3 @@ class aaSembleV1Views(object):
         if getattr(settings, 'SIGNUP_OPEN', False):
             urls += [url(r'^auth/registration/', include('rest_auth.registration.urls'))]
         return urls
-
-    def log_action(self):
-        try:
-            UserActionLogger.create(action_type='API', user=self.request.user,
-                                    http_method_used=self.request.method, method_url=self.request.path,
-                                    remote_addr=self.request.META.get('REMOTE_ADDR'))
-        except Exception as e:
-            print('Exception raised by UserActionLogger trying to save a User action. ', e)
-            pass

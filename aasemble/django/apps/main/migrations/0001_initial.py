@@ -22,7 +22,7 @@ class Migration(migrations.Migration):
                 ('method_url', models.URLField(null=True)),
                 ('remote_addr', models.IPAddressField(null=True)),
                 ('view_function', models.CharField(max_length=200, blank=True)),
-                ('user', models.ForeignKey(to=settings.AUTH_USER_MODEL)),
+                ('user', models.ForeignKey(to=settings.AUTH_USER_MODEL, null=True)),
             ],
         ),
     ]
