@@ -302,9 +302,8 @@ class APIv1Tests(APITestCase):
 
         self.assertEquals(response.status_code, 401)
 
-    def test_create_source(self):
-        authenticate(self.client, 'eric')
-
+    def test_create_source(self, user='eric'):
+        authenticate(self.client, user)
         response = self.client.get(self.source_list_url.replace('sources', 'repositories'))
 
         data = {'git_repository': 'https://github.com/sorenh/buildsvctest',
@@ -323,6 +322,29 @@ class APIv1Tests(APITestCase):
         self.assertEquals(response.data, data)
         return response.data
 
+    def test_create_source_with_other_user_repository(self):
+        authenticate(self.client, 'eric')
+        response = self.client.get(self.source_list_url.replace('sources', 'repositories'))
+        data = {'git_repository': 'https://github.com/sorenh/buildsvctest',
+                'git_branch': 'master',
+                'repository': response.data['results'][0]['self']}
+        authenticate(self.client, 'aaron')
+        response = self.client.post(self.source_list_url, data, format='json')
+        self.assertEquals(response.status_code, 400)
+        self.assertEquals(response.data, {'repository': ['Invalid hyperlink - Object does not exist.']})
+
+    def test_create_source_with_same_group_member_repository(self):
+        data = {'name': 'testrepo'}
+        authenticate(self.client, 'brandon')
+        response = self.client.post(self.repository_list_url, data, format='json')
+        data = {'git_repository': 'https://github.com/sorenh/buildsvctest',
+                'git_branch': 'master',
+                'repository': response.data['self']}
+        authenticate(self.client, 'charles')
+        response = self.client.post(self.source_list_url, data, format='json')
+        self.assertEquals(response.status_code, 400)
+        self.assertEquals(response.data, {'repository': ['Invalid hyperlink - Object does not exist.']})
+
     def test_delete_source(self):
         source = self.test_create_source()
 
@@ -331,6 +353,12 @@ class APIv1Tests(APITestCase):
         self.assertEquals(response.status_code, 204)
 
         response = self.client.get(source['self'])
+        self.assertEquals(response.status_code, 404)
+
+    def test_delete_source_other_member_same_group(self):
+        source = self.test_create_source(user='brandon')
+        authenticate(self.client, 'charles')
+        response = self.client.delete(source['self'])
         self.assertEquals(response.status_code, 404)
 
     def test_delete_source_other_user(self):
@@ -399,12 +427,11 @@ class APIv1Tests(APITestCase):
         self.assertEquals(response.status_code, 400)
         self.assertEquals(response.data, {'url': ['Enter a valid URL.']})
 
-    def test_create_mirror(self):
+    def test_create_mirror(self, user='eric'):
         data = {'url': 'http://example.com/',
                 'series': ['trusty'],
                 'components': ['main']}
-        authenticate(self.client, 'eric')
-
+        authenticate(self.client, user)
         response = self.client.post(self.mirror_list_url, data, format='json')
         self.assertEquals(response.status_code, 201)
         self.assertTrue(response.data['self'].startswith('http://testserver' + self.mirror_list_url), response.data['self'])
@@ -414,8 +441,8 @@ class APIv1Tests(APITestCase):
         self.assertEquals(data, response.data)
         return response.data
 
-    def test_patch_mirror(self):
-        mirror = self.test_create_mirror()
+    def test_patch_mirror(self, user='eric'):
+        mirror = self.test_create_mirror(user)
         data = {'public': True}
         response = self.client.patch(mirror['self'], data, format='json')
         self.assertEquals(response.status_code, 200)
@@ -440,6 +467,22 @@ class APIv1Tests(APITestCase):
         mirror = self.test_patch_mirror()
         data = {'public': False}
         authenticate(self.client, 'aaron')
+        response = self.client.patch(mirror['self'], data, format='json')
+        self.assertEquals(response.status_code, 403)
+        self.assertEquals(response.data, {'detail': 'You do not have permission to perform this action.'})
+
+    def test_patch_mirror_same_group_other_user(self):
+        mirror = self.test_create_mirror(user='brandon')
+        data = {'public': True}
+        authenticate(self.client, 'charles')
+        response = self.client.patch(mirror['self'], data, format='json')
+        self.assertEquals(response.status_code, 404)
+        self.assertEquals(response.data, {'detail': 'Not found.'})
+
+    def test_patch_public_mirror_same_group_other_user(self):
+        mirror = self.test_patch_mirror(user='brandon')
+        data = {'public': False}
+        authenticate(self.client, 'charles')
         response = self.client.patch(mirror['self'], data, format='json')
         self.assertEquals(response.status_code, 403)
         self.assertEquals(response.data, {'detail': 'You do not have permission to perform this action.'})
@@ -473,9 +516,22 @@ class APIv1Tests(APITestCase):
         response = self.client.delete(mirror['self'])
         self.assertEquals(response.status_code, 403)
 
+    def test_delete_public_mirror_same_group_other_user(self):
+        mirror = self.test_patch_mirror(user='brandon')
+        authenticate(self.client, 'charles')
+        response = self.client.delete(mirror['self'])
+        self.assertEquals(response.status_code, 403)
+        self.assertEquals(response.data, {'detail': 'You do not have permission to perform this action.'})
+
     def test_delete_mirror_other_user(self):
         mirror = self.test_create_mirror()
         authenticate(self.client, 'aaron')
+        response = self.client.delete(mirror['self'])
+        self.assertEquals(response.status_code, 404)
+
+    def test_delete_mirror_same_group_other_user(self):
+        mirror = self.test_create_mirror(user='brandon')
+        authenticate(self.client, 'charles')
         response = self.client.delete(mirror['self'])
         self.assertEquals(response.status_code, 404)
 
@@ -557,11 +613,11 @@ class APIv1Tests(APITestCase):
         self.assertEquals(response.status_code, 400)
         self.assertEquals(response.data, {'mirrors': ['Invalid hyperlink - No URL match.']})
 
-    def test_create_mirrorset(self):
+    def test_create_mirrorset(self, user='eric'):
         data = {'url': 'http://example.com/',
                 'series': ['trusty'],
                 'components': ['main']}
-        authenticate(self.client, 'eric')
+        authenticate(self.client, user)
         response = self.client.post(self.mirrorset_list_url.replace('mirror_sets', 'mirrors'), data, format='json')
         self.assertEquals(response.status_code, 201)
         data = {'mirrors': [response.data['self']]}
@@ -602,6 +658,13 @@ class APIv1Tests(APITestCase):
         response = self.client.patch(mirrorset['self'], data, format='json')
         self.assertEquals(response.status_code, 404)
 
+    def test_patch_mirrorset_other_user_same_group(self):
+        mirrorset = self.test_create_mirrorset(user='brandon')
+        data = {}
+        authenticate(self.client, 'charles')
+        response = self.client.patch(mirrorset['self'], data, format='json')
+        self.assertEquals(response.status_code, 404)
+
     def test_patch_mirrorset_no_data(self):
         mirrorset = self.test_create_mirrorset()
         data = {}
@@ -622,6 +685,12 @@ class APIv1Tests(APITestCase):
     def test_delete_mirrorset_other_user(self):
         mirrorset = self.test_create_mirrorset()
         authenticate(self.client, 'aaron')
+        response = self.client.delete(mirrorset['self'])
+        self.assertEquals(response.status_code, 404)
+
+    def test_delete_mirrorset_other_user_same_group(self):
+        mirrorset = self.test_create_mirrorset(user='brandon')
+        authenticate(self.client, 'charles')
         response = self.client.delete(mirrorset['self'])
         self.assertEquals(response.status_code, 404)
 
@@ -661,11 +730,11 @@ class APIv1Tests(APITestCase):
         response = self.client.post(self.snapshot_list_url, data, format='json')
         self.assertEquals(response.status_code, 401)
 
-    def test_create_snapshot(self):
+    def test_create_snapshot(self, user='eric'):
         data = {'url': 'http://example.com/',
                 'series': ['trusty'],
                 'components': ['main']}
-        authenticate(self.client, 'eric')
+        authenticate(self.client, user)
         response = self.client.post(self.snapshot_list_url.replace('snapshots', 'mirrors'), data, format='json')
         self.assertEquals(response.status_code, 201)
         data = {'mirrors': [response.data['self']]}
@@ -713,6 +782,12 @@ class APIv1Tests(APITestCase):
     def test_delete_snapshot_other_user(self):
         snapshot = self.test_create_snapshot()
         authenticate(self.client, 'aaron')
+        response = self.client.delete(snapshot['self'])
+        self.assertEquals(response.status_code, 404)
+
+    def test_delete_snapshot_other_user_same_group(self):
+        snapshot = self.test_create_snapshot(user='brandon')
+        authenticate(self.client, 'charles')
         response = self.client.delete(snapshot['self'])
         self.assertEquals(response.status_code, 404)
 
