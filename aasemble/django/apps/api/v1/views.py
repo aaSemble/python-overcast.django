@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from rest_framework_nested import routers
 
 from aasemble.django.apps.buildsvc import models as buildsvc_models
+from aasemble.django.apps.main.models import UserActionLogger
 from aasemble.django.apps.mirrorsvc import models as mirrorsvc_models
 from aasemble.django.exceptions import DuplicateResourceException
 
@@ -235,3 +236,12 @@ class aaSembleV1Views(object):
         if getattr(settings, 'SIGNUP_OPEN', False):
             urls += [url(r'^auth/registration/', include('rest_auth.registration.urls'))]
         return urls
+
+    def log_action(self):
+        try:
+            UserActionLogger.create(action_type='API', user=self.request.user,
+                                    http_method_used=self.request.method, method_url=self.request.path,
+                                    remote_addr=self.request.META.get('REMOTE_ADDR'))
+        except Exception as e:
+            print('Exception raised by UserActionLogger trying to save a User action. ', e)
+            pass
