@@ -84,7 +84,7 @@ class APIv1Tests(APITestCase):
 
         self.assertEquals(response.status_code, 201)
         self.assertTrue(response.data['self'].startswith('http://testserver' + self.repository_list_url), response.data['self'])
-        if(user=='eric'):
+        if(user == 'eric'):
             expected_result = {'external_dependencies': response.data['self'] + 'external_dependencies/',
                                'name': 'testrepo',
                                'binary_source_list': 'deb http://127.0.0.1:8000/apt/eric/testrepo aasemble main',
