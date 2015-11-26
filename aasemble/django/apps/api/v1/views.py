@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from rest_framework_nested import routers
 
 from aasemble.django.apps.buildsvc import models as buildsvc_models
+from aasemble.django.apps.main.models import UserActionLogger
 from aasemble.django.apps.mirrorsvc import models as mirrorsvc_models
 from aasemble.django.exceptions import DuplicateResourceException
 
@@ -53,11 +54,14 @@ class aaSembleV1Views(object):
             lookup_value_regex = selff.default_lookup_value_regex
             queryset = mirrorsvc_models.Mirror.objects.all()
             serializer_class = selff.serializers.MirrorSerializer
+            action_logger = UserActionLogger()
 
             def get_queryset(self):
+                self.action_logger.log_action(self.request)
                 return self.queryset.filter(owner_id=self.request.user.id) | self.queryset.filter(public=True)
 
             def perform_create(self, serializer):
+                self.action_logger.log_action(self.request)
                 serializer.save(owner=self.request.user)
 
             @detail_route(methods=['post'])
@@ -68,6 +72,7 @@ class aaSembleV1Views(object):
                     status = 'update scheduled'
                 else:
                     status = 'update already scheduled'
+                self.action_logger.log_action(self.request)
                 return Response({'status': status})
 
         return MirrorViewSet
