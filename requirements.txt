@@ -6,6 +6,7 @@ python-debian
 djangorestframework
 git+https://github.com/alanjds/drf-nested-routers
 git+https://github.com/aaSemble/python-dbuild#egg=dbuild
+git+https://github.com/sorenh/python-dbuild#egg=dbuild
 chardet
 pytz
 mysqlclient
