@@ -90,7 +90,7 @@ class RepositoryFunctionalTests(StaticLiveServerTestCase):
         self.assertEqual(self.verify_profile_page('brandon'), True, "Profile Name not verified")
 
     def test_new_mirrors(self):
-        ''' This tests validates if non public mirror is created'''
+        ''' This test validates if non public mirror is created'''
         new_mirror_button = (by.By.LINK_TEXT, 'New')
         self.create_login_session('brandon')
         self.selenium.get(self.live_server_url)
