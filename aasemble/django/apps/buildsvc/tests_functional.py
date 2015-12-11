@@ -93,7 +93,8 @@ class RepositoryFunctionalTests(StaticLiveServerTestCase):
         ''' This tests validates if non public mirror is created'''
         new_mirror_button = (by.By.LINK_TEXT, 'New')
         self.create_login_session('brandon')
-        self.selenium.get('%s%s' % (self.live_server_url, '/mirrorsvc/mirrors/'))
+        self.selenium.get(self.live_server_url)
+        self.selenium.find_element(by.By.LINK_TEXT, 'Mirrors').click()
         self.selenium.set_window_size(1024, 768)
         self.assertTrue(self._is_element_visible(new_mirror_button), "Mirror New Button is not Visible")
         self.selenium.find_element(*new_mirror_button).click()
