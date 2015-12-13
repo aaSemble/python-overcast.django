@@ -1,6 +1,6 @@
 import os
 import re
-
+import time
 from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 from django.test.utils import override_settings, skipIf
 
@@ -25,6 +25,7 @@ class RepositoryFunctionalTests(StaticLiveServerTestCase):
         super(RepositoryFunctionalTests, cls).setUpClass()
         cls.selenium = WebDriver()
         cls.selenium.maximize_window()
+        cls.selenium.set_window_size(1024, 768)
 
     @classmethod
     def tearDownClass(cls):
@@ -103,8 +104,25 @@ class RepositoryFunctionalTests(StaticLiveServerTestCase):
         self.selenium.find_element(by.By.ID, 'id_components').send_keys('aasemble')
         self.selenium.find_element(by.By.XPATH, './/button[@type="submit" and contains(.,"Submit")]').click()
         self.assertTrue(self._is_element_visible((by.By.LINK_TEXT, '%s%s' % (self.live_server_url, '/apt/brandon/brandon'))))
-        # Test if public flag is false
-        self.assertTrue(self._is_element_visible((by.By.XPATH, ".//table/tbody/tr[1]/td[5][contains(text(), False)]")))
+        # Test if public flag is false.
+        table_id = self.selenium.find_element(by.By.CSS_SELECTOR, '.table.table-striped')
+        url_id = self.live_server_url+'/apt/brandon/brandon'
+        # method call returns row which matches URL id provided while creating mirror 
+        row = self.fetch_table_row_details(url_id,table_id) 
+        columns = row.find_elements(by.By.TAG_NAME, "td")
+        self.assertTrue(columns[5].text,False) # fifth column displays if mirror is public or not
+
+
+    """This method extracts web table row based on input text 
+       data to compare and verify as per test case""" 
+    def fetch_table_row_details(self,findtext,table_webelement):
+        rows = table_webelement.find_elements(by.By.TAG_NAME, "tr") # get all of the rows in the table
+        for row in rows:
+            # Get the columns        
+            col = row.find_elements(by.By.TAG_NAME, "td") #note: index start from 0, 1 is col 2
+            for s in col:
+                if s.text == findtext:
+                    return row 
 
     def _is_element_visible(self, locator):
         try:
