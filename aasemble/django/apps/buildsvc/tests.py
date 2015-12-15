@@ -87,6 +87,10 @@ class RepositoryTestCase(TestCase):
         brandon = auth_models.User.objects.get(id=2)
         self.assertFalse(Repository.objects.get(id=12).user_can_modify(brandon))
 
+    def test_user_same_group_can_modify_other_repo(self):
+        brandon = auth_models.User.objects.get(id=2)
+        self.assertFalse(Repository.objects.get(id=2).user_can_modify(brandon))
+
     def test_ensure_key_noop_when_key_id_set(self):
         repo = Repository.objects.get(id=1)
         with mock.patch('aasemble.django.apps.buildsvc.models.run_cmd') as run_cmd:
