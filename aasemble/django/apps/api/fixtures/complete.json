@@ -1523,5 +1523,17 @@
     },
     "model": "mirrorsvc.snapshot",
     "pk": 50
+},
+{
+    "fields": {
+        "url": "http://example.com/thefile",
+        "orig_path": "archive.ubuntu.com/ubuntu/dists/something",
+        "snapshots": [
+            1,
+            2
+        ]
+    },
+    "model": "mirrorsvc.snapshotfile",
+    "pk": 1
 }
 ]

@@ -169,6 +169,12 @@ class Snapshot(models.Model):
         return user == self.mirrorset.owner
 
 
+class SnapshotFile(models.Model):
+    orig_path = models.CharField(max_length=255)
+    url = models.URLField(max_length=255)
+    snapshots = models.ManyToManyField(Snapshot)
+
+
 class Tags(models.Model):
     snapshot = models.ForeignKey(Snapshot, related_name='tags')
     tag = models.CharField(max_length=200)

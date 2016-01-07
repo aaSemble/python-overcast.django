@@ -1,7 +1,7 @@
 from django.contrib.auth.decorators import login_required
 from django.core.urlresolvers import reverse
-from django.http import HttpResponse, HttpResponseRedirect
-from django.shortcuts import render
+from django.http import FileResponse, HttpResponse, HttpResponseRedirect
+from django.shortcuts import get_object_or_404, render
 
 from .forms import MirrorDefinitionForm, MirrorSetDefinitionForm, TagDefinitionForm
 from .models import Mirror, MirrorSet, Snapshot, Tags
@@ -157,3 +157,13 @@ def create_new_snapshot(request, uuid):
         snap = Snapshot.objects.create(mirrorset=ms)
         snap.perform_snapshot()
     return HttpResponseRedirect(reverse('mirrorsvc:mirrorset_snapshots', kwargs={'uuid': uuid}))
+
+
+def snapshotfile(request, uuid, path):
+    s = get_object_or_404(Snapshot, uuid=uuid)
+    sf = get_object_or_404(s.snapshotfile_set, orig_path=path)
+
+    if sf.url.startswith('file:///'):
+        return FileResponse(open(sf.url[7:], 'rb'))
+    elif sf.url.startswith('http://'):
+        return HttpResponseRedirect(sf.url)

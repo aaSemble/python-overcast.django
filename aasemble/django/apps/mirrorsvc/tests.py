@@ -1,7 +1,8 @@
 from django.contrib.auth import models as auth_models
-from django.test import TestCase
 
 import mock
+
+from aasemble.django.tests import AasembleTestCase as TestCase
 
 from .models import Mirror, MirrorSet, Snapshot, Tags
 
@@ -30,6 +31,20 @@ class SnapshotTestCase(TestCase):
         perform_snapshot(s.id)
         sync_dists.assert_called_with()
         symlink_pool.assert_called_with()
+
+
+class SnapshotFileTestCase(TestCase):
+    def test_redirects(self):
+        response = self.client.get('/mirrorsvc/snapshots/470688a8-7294-4c17-b020-1d67aebaf972/archive.ubuntu.com/ubuntu/dists/something')
+        self.assertRedirects(response, 'http://example.com/thefile', fetch_redirect_response=False)
+
+    def test_unknown_snapshot_gives_404(self):
+        response = self.client.get('/mirrorsvc/snapshots/12345678-7294-4c17-b020-1d67aebaf972/archive.ubuntu.com/ubuntu/dists/something')
+        self.assertEquals(response.status_code, 404)
+
+    def test_file_not_in_snapshot_gives_404(self):
+        response = self.client.get('/mirrorsvc/snapshots/f8e81e20-b6c3-4c92-b95a-8b8e9845aadd/archive.ubuntu.com/ubuntu/dists/something')
+        self.assertEquals(response.status_code, 404)
 
 
 class TaskTestCase(TestCase):
