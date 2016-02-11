@@ -10,9 +10,17 @@ from django.contrib.sites.models import Site
 from django.db import models
 from django.utils.timezone import now
 
+from aasemble.django.apps.buildsvc.models import Architecture
 from aasemble.utils import ensure_dir
 
 LOG = logging.getLogger(__name__)
+
+
+def get_default_architecture_pk(name='amd64'):
+    try:
+        return Architecture.objects.get(name=name).pk
+    except Architecture.DoesNotExist:
+        return None
 
 
 class Build(models.Model):
@@ -38,8 +46,19 @@ class Build(models.Model):
         (UNKNOWN, 'Unknown (predates state tracking)'),
     )
 
+    SOURCE_AND_BINARY = 0
+    SOURCE = 1
+    BINARY = 2
+
+    BUILD_TYPES = (
+        (SOURCE_AND_BINARY, 'Source+Binary'),
+        (SOURCE, 'Source'),
+        (BINARY, 'Binary'))
+
     uuid = models.UUIDField(unique=True, default=uuid.uuid4, editable=False)
-    source = models.ForeignKey('PackageSource')
+    source = models.ForeignKey('PackageSource', null=True)
+    architecture = models.ForeignKey(Architecture, default=get_default_architecture_pk, null=True)
+    source_package_version = models.ForeignKey('SourcePackageVersion', null=True)
     version = models.CharField(max_length=50)
     build_counter = models.IntegerField(default=0)
     build_started = models.DateTimeField(auto_now_add=True)
@@ -48,6 +67,8 @@ class Build(models.Model):
     handler_node = models.CharField(max_length=100, default=socket.getfqdn, null=True)
     state = models.SmallIntegerField(default=NEEDS_BUILDING,
                                      choices=BUILD_STATES)
+    build_type = models.SmallIntegerField(choices=BUILD_TYPES,
+                                          default=SOURCE_AND_BINARY)
 
     def __init__(self, *args, **kwargs):
         self._logger = None
@@ -213,3 +234,52 @@ def get_source_build_cmd(b_url, settings=settings):
     build_cmd += ['source-build', b_url]
 
     return build_cmd
+
+
+class SourceBuild(Build):
+    class Meta:
+        proxy = True
+
+    def run(self, tmpdir, executor):
+        self.update_state(self.BUILDING)
+        self.wait_until_pkgbuild_is_installed(executor)
+
+        url = self.get_full_absolute_url()
+
+        executor.run_cmd(['aasemble-pkgbuild', 'checkout', url], cwd=tmpdir, logger=self.logger)
+        version = executor.run_cmd(['aasemble-pkgbuild', 'version', url], cwd=tmpdir, logger=self.logger)
+        name = executor.run_cmd(['aasemble-pkgbuild', 'name', url], cwd=tmpdir, logger=self.logger)
+
+        self.version = version
+        self.save(update_fields=['version'])
+
+        self.source.last_built_version = version
+        self.source.last_built_name = name
+        self.source.save(update_fields=['last_built_version', 'last_built_name'])
+
+        source_build_cmd = get_source_build_cmd(url)
+        executor.run_cmd(source_build_cmd, cwd=tmpdir, logger=self.logger)
+
+        self.update_state(self.SUCCESFULLY_BUILT)
+
+        self.build_finished = now()
+        self.save()
+
+
+class BinaryBuild(Build):
+    class Meta:
+        proxy = True
+
+    def run(self, tmpdir, executor):
+        self.update_state(self.BUILDING)
+        self.wait_until_pkgbuild_is_installed(executor)
+
+        url = self.get_full_absolute_url()
+
+        binary_build_cmd = get_binary_build_cmd(url)
+        executor.run_cmd(binary_build_cmd, cwd=tmpdir, logger=self.logger)
+
+        self.update_state(self.SUCCESFULLY_BUILT)
+
+        self.build_finished = now()
+        self.save()

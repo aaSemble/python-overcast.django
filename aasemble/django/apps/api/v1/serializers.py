@@ -19,6 +19,7 @@ class aaSembleAPIv1Serializers(object):
     repo_has_series_name = False
     source_includes_last_built_version = False
     build_includes_counter = False
+    include_source_package_version = False
 
     def __init__(self):
         self.MirrorSerializer = self.MirrorSerializerFactory()
@@ -201,6 +202,9 @@ class aaSembleAPIv1Serializers(object):
             if selff.build_includes_counter:
                 build_counter = serializers.IntegerField(read_only=True)
 
+            if selff.include_source_package_version:
+                source_package_version = serializers.CharField(read_only=True)
+
             buildlog_url = serializers.HyperlinkedRelatedField(view_name='{0}_build-log'.format(selff.view_prefix), read_only=True, source='*', lookup_field=selff.default_lookup_field)
 
             class Meta:
@@ -210,6 +214,8 @@ class aaSembleAPIv1Serializers(object):
                     fields += ('duration', 'build_finished')
                 if selff.build_includes_counter:
                     fields += ('build_counter',)
+                if selff.include_source_package_version:
+                    fields += ('source_package_version',)
 
         return BuildSerializer
 

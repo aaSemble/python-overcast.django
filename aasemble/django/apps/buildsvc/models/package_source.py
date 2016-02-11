@@ -83,7 +83,10 @@ class PackageSource(models.Model):
     def build_real(self):
         timestamp = now().strftime('%s%f')
         with executors.get_executor('b-%s-%s' % (self.uuid, timestamp)) as executor, TemporaryDirectory() as tmpdir:
-            with self.create_build() as b:
+            with self.create_source_build() as b:
+                b.run(tmpdir, executor)
+
+            with self.create_binary_build() as b:
                 b.run(tmpdir, executor)
 
             executor.get('*.*', tmpdir)
@@ -108,13 +111,23 @@ class PackageSource(models.Model):
             self.save()
             self.refresh_from_db()
 
-    def create_build(self):
+    def create_source_build(self):
         self.increment_build_counter()
 
-        from aasemble.django.apps.buildsvc.models.build import Build
-        return Build.objects.create(source=self,
-                                    build_counter=self.build_counter,
-                                    sha=self.last_seen_revision)
+        from aasemble.django.apps.buildsvc.models.build import SourceBuild
+        return SourceBuild.objects.create(source=self,
+                                          build_counter=self.build_counter,
+                                          sha=self.last_seen_revision,
+                                          build_type=SourceBuild.SOURCE)
+
+    def create_binary_build(self):
+        self.increment_build_counter()
+
+        from aasemble.django.apps.buildsvc.models.build import BinaryBuild
+        return BinaryBuild.objects.create(source=self,
+                                          build_counter=self.build_counter,
+                                          sha=self.last_seen_revision,
+                                          build_type=BinaryBuild.BINARY)
 
     def delete_on_filesystem(self):
         if self.last_built_name:

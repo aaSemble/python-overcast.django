@@ -11,9 +11,9 @@ from aasemble.django.apps.buildsvc.enums import (BINARY_PACKAGE_TYPE_DDEB,
                                                  BINARY_PACKAGE_TYPE_DEB,
                                                  BINARY_PACKAGE_TYPE_UDEB)
 from aasemble.django.apps.buildsvc.models.architecture import Architecture
-from aasemble.django.apps.buildsvc.models.binary_build import BinaryBuild
 from aasemble.django.apps.buildsvc.models.binary_package import BinaryPackage
 from aasemble.django.apps.buildsvc.models.binary_package_version_user_field import BinaryPackageVersionUserField
+from aasemble.django.apps.buildsvc.models.build import Build
 from aasemble.django.apps.buildsvc.models.source_package import SourcePackage
 from aasemble.django.apps.buildsvc.models.source_package_version import SourcePackageVersion
 
@@ -46,7 +46,7 @@ class BinaryPackageVersion(models.Model):
     binary_package = models.ForeignKey(BinaryPackage)
     short_description = models.CharField(max_length=255, null=False, default='')
     long_description = models.TextField(null=False, default="")
-    binary_build = models.ForeignKey(BinaryBuild)
+    build = models.ForeignKey(Build)
     package_type = models.SmallIntegerField(choices=BINARY_PACKAGE_TYPE_CHOICES, default=BINARY_PACKAGE_TYPE_DEB)
 
     # Well-known fields
@@ -109,18 +109,18 @@ class BinaryPackageVersion(models.Model):
                         'Filename')
 
     def __str__(self):
-        return '%s_%s_%s' % (self.binary_package.name, self.version, self.binary_build.architecture)
+        return '%s_%s_%s' % (self.binary_package.name, self.version, self.build.architecture)
 
     @property
     def filename(self):
-        sp = self.binary_build.source_package_version.source_package
+        sp = self.build.source_package_version.source_package
         return 'pool/main/%s/%s/%s_%s_%s.deb' % (sp.name[0], sp.name, self.binary_package.name, self.version, self.architecture)
 
     def format_for_packages(self):
         data = deb822.Deb822()
 
         data['Package'] = self.binary_package.name
-        data['Source'] = self.binary_build.source_package_version.source_package.name
+        data['Source'] = self.build.source_package_version.source_package.name
 
         for field in self.model_fields:
             value = getattr(self, field.lower().replace('-', '_'))
@@ -138,8 +138,8 @@ class BinaryPackageVersion(models.Model):
         return str(data)
 
     def store(self, fpath):
-        destpath = os.path.join(self.binary_build.source_package_version.source_package.repository.user.username,
-                                self.binary_build.source_package_version.source_package.repository.name,
+        destpath = os.path.join(self.build.source_package_version.source_package.repository.user.username,
+                                self.build.source_package_version.source_package.repository.name,
                                 self.filename)
         storage_driver = storage.get_repository_storage_driver()
         with open(fpath, 'rb') as fp:
@@ -186,7 +186,7 @@ class BinaryPackageVersion(models.Model):
                 spv, _ = SourcePackageVersion.objects.get_or_create(source_package=bb_info['source_package'], version=bb_info['version'])
             else:
                 spv = source_package_version
-            kwargs['binary_build'], _ = BinaryBuild.objects.get_or_create(source_package_version=spv, architecture=bb_info['architecture'])
+            kwargs['build'], _ = Build.objects.get_or_create(source_package_version=spv, architecture=bb_info['architecture'])
 
         with open(path, 'rb') as fp:
             contents = fp.read()
