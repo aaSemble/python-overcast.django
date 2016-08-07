@@ -8,6 +8,7 @@ apt-get install -y python-pip libffi-dev libssl-dev python-dev git docker-engine
 adduser ubuntu docker
 cat <<EOF > /root/requirements.txt
 PyYAML
+amqp==1.4.9
 Django
 python-debian
 djangorestframework
